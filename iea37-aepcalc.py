@@ -58,26 +58,25 @@ def GaussianWake(frame_coords):
     CT = 4.0*1./3.*(1.0-1./3.)
     # Constant, relating to a turbulence intensity of 0.075
     k = 0.0324555
-    # Array holding the wake deficit seen at each turbine
-    loss = np.zeros(frame_coords.shape)
 
-    # Looking at each turb (Primary)
-    for i, primary in enumerate(frame_coords):
-        # Calculate the loss from all others
-        loss_array = np.zeros(frame_coords.shape)
-        # Looking at all other turbs (Target)
-        for j, target in enumerate(frame_coords):
-            x = primary.x - target.x   # Calculate the x-dist
-            y = primary.y - target.y   # And the y-offset
-            if x > 0.:                 # If Primary is downwind of the Target
-                sigma = k*x + 1./np.sqrt(8.)  # Calculate the wake loss
-                # Simplified Bastankhah Gaussian wake model
-                exponent = -0.5 * (y/sigma)**2
-                radical = 1. - CT/(8.*sigma**2)
-                loss_array[j] = (1.-np.sqrt(radical)) * np.exp(exponent)
-            # Note that if the Target is upstream, loss is defaulted to zero
-        # Total wake losses from all upstream turbs, using sqrt of sum of sqrs
-        loss[i] = np.sqrt(np.sum(loss_array**2))
+    # Calculate matrices of pairwise downwind and crosswind distances
+    frame_coords_matrix = np.tile(frame_coords, (len(frame_coords), 1))
+    dist = np.recarray(frame_coords_matrix.shape, coordinate)
+    dist.x = frame_coords_matrix.x - frame_coords_matrix.x.T
+    dist.y = frame_coords_matrix.y - frame_coords_matrix.y.T
+
+    # If the turbine of interest is downwind of the turbine generating the
+    # wake, there is a wake loss; calculate it using the Simplified Bastankhah
+    # Gaussian wake model
+    downwind = dist.x > 0
+    sigma = k*dist.x[downwind] + 1./np.sqrt(8.)
+    exponent = -0.5 * (dist.y[downwind]/sigma)**2
+    radical = 1. - CT/(8. * sigma**2)
+    losses = np.zeros(dist.shape)
+    losses[downwind] = (1.-np.sqrt(radical)) * np.exp(exponent)
+
+    # Array holding the wake deficit seen at each turbine
+    loss = np.sqrt(np.sum(losses ** 2, axis=0))
 
     return loss
 

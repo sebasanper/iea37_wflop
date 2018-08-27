@@ -53,21 +53,23 @@ def WindFrame(turb_coords, wind_dir_deg):
 def GaussianWake(frame_coords, turb_diam):
     """Return each turbine's total loss due to wake from upstream turbines"""
     # Equations and values explained in <iea37-wakemodel.pdf>
-    num_turb = len(frame_coords)
 
     # Constant thrust coefficient
     CT = 4.0*1./3.*(1.0-1./3.)
     # Constant, relating to a turbulence intensity of 0.075
     k = 0.0324555
     # Array holding the wake deficit seen at each turbine
-    loss = np.zeros(num_turb)
+    loss = np.zeros(frame_coords.shape)
 
-    for i in range(num_turb):            # Looking at each turb (Primary)
-        loss_array = np.zeros(num_turb)  # Calculate the loss from all others
-        for j in range(num_turb):        # Looking at all other turbs (Target)
-            x = frame_coords.x[i] - frame_coords.x[j]   # Calculate the x-dist
-            y = frame_coords.y[i] - frame_coords.y[j]   # And the y-offset
-            if x > 0.:                   # If Primary is downwind of the Target
+    # Looking at each turb (Primary)
+    for i, primary in enumerate(frame_coords):
+        # Calculate the loss from all others
+        loss_array = np.zeros(frame_coords.shape)
+        # Looking at all other turbs (Target)
+        for j, target in enumerate(frame_coords):
+            x = primary.x - target.x   # Calculate the x-dist
+            y = primary.y - target.y   # And the y-offset
+            if x > 0.:                 # If Primary is downwind of the Target
                 sigma = k*x + turb_diam/np.sqrt(8.)  # Calculate the wake loss
                 # Simplified Bastankhah Gaussian wake model
                 exponent = -0.5 * (y/sigma)**2
@@ -83,7 +85,6 @@ def GaussianWake(frame_coords, turb_diam):
 def DirPower(turb_coords, wind_dir_deg, wind_speed,
              turb_diam, turb_ci, turb_co, rated_ws, rated_pwr):
     """Return the power produced by each turbine."""
-    num_turb = len(turb_coords)
 
     # Shift coordinate frame of reference to downwind/crosswind
     frame_coords = WindFrame(turb_coords, wind_dir_deg)
@@ -92,19 +93,17 @@ def DirPower(turb_coords, wind_dir_deg, wind_speed,
     # Effective windspeed is freestream multiplied by wake deficits
     wind_speed_eff = wind_speed*(1.-loss)
     # By default, the turbine's power output is zero
-    turb_pwr = np.zeros(num_turb)
+    turb_pwr = np.zeros(turb_coords.shape)
 
     # Check to see if turbine produces power for experienced wind speed
-    for n in range(num_turb):
+    for n, ws_eff in enumerate(wind_speed_eff):
         # If we're between the cut-in and rated wind speeds
-        if ((turb_ci <= wind_speed_eff[n])
-                and (wind_speed_eff[n] < rated_ws)):
+        if ((turb_ci <= ws_eff) and (ws_eff < rated_ws)):
             # Calculate the curve's power
-            turb_pwr[n] = rated_pwr * ((wind_speed_eff[n]-turb_ci)
-                                       / (rated_ws-turb_ci))**3
+            turb_pwr[n] = (rated_pwr
+                           * ((ws_eff-turb_ci) / (rated_ws-turb_ci)) ** 3)
         # If we're between the rated and cut-out wind speeds
-        elif ((rated_ws <= wind_speed_eff[n])
-                and (wind_speed_eff[n] < turb_co)):
+        elif ((rated_ws <= ws_eff) and (ws_eff < turb_co)):
             # Produce the rated power
             turb_pwr[n] = rated_pwr
 
@@ -117,14 +116,12 @@ def DirPower(turb_coords, wind_dir_deg, wind_speed,
 def calcAEP(turb_coords, wind_freq, wind_speed, wind_dir,
             turb_diam, turb_ci, turb_co, rated_ws, rated_pwr):
     """Calculate the wind farm AEP."""
-    num_bins = len(wind_freq)  # Number of bins used for our windrose
-
     #  Power produced by the wind farm from each wind direction
-    pwr_produced = np.zeros(num_bins)
+    pwr_produced = np.zeros(wind_dir.shape)
     # For each wind bin
-    for i in range(num_bins):
+    for i, direction in enumerate(wind_dir):
         # Find the farm's power for the current direction
-        pwr_produced[i] = DirPower(turb_coords, wind_dir[i], wind_speed,
+        pwr_produced[i] = DirPower(turb_coords, direction, wind_speed,
                                    turb_diam, turb_ci, turb_co,
                                    rated_ws, rated_pwr)
 

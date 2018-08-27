@@ -17,6 +17,9 @@ Modified 22 Aug 2018 implementing multiple suggestions from Erik Quaeghebeur:
     - Used yaml.safe_load.
     - Modified .yaml reading syntax for brevity.
     - Removed some (now) unused array initializations.
+Modified 27 Aug 2018 by Erik Quaeghebeur:
+    - Cosmetic changes (whitespace).
+    - Make model adimensional.
     - Vectorized for loops for significant speed increase of calcAEP.
 """
 

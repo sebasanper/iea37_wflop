@@ -50,7 +50,7 @@ def WindFrame(turb_coords, wind_dir_deg):
     return frame_coords
 
 
-def GaussianWake(frame_coords, turb_diam):
+def GaussianWake(frame_coords):
     """Return each turbine's total loss due to wake from upstream turbines"""
     # Equations and values explained in <iea37-wakemodel.pdf>
 
@@ -70,10 +70,10 @@ def GaussianWake(frame_coords, turb_diam):
             x = primary.x - target.x   # Calculate the x-dist
             y = primary.y - target.y   # And the y-offset
             if x > 0.:                 # If Primary is downwind of the Target
-                sigma = k*x + turb_diam/np.sqrt(8.)  # Calculate the wake loss
+                sigma = k*x + 1./np.sqrt(8.)  # Calculate the wake loss
                 # Simplified Bastankhah Gaussian wake model
                 exponent = -0.5 * (y/sigma)**2
-                radical = 1. - CT/(8.*sigma**2 / turb_diam**2)
+                radical = 1. - CT/(8.*sigma**2)
                 loss_array[j] = (1.-np.sqrt(radical)) * np.exp(exponent)
             # Note that if the Target is upstream, loss is defaulted to zero
         # Total wake losses from all upstream turbs, using sqrt of sum of sqrs
@@ -83,13 +83,13 @@ def GaussianWake(frame_coords, turb_diam):
 
 
 def DirPower(turb_coords, wind_dir_deg, wind_speed,
-             turb_diam, turb_ci, turb_co, rated_ws, rated_pwr):
+             turb_ci, turb_co):
     """Return the power produced by each turbine."""
 
     # Shift coordinate frame of reference to downwind/crosswind
     frame_coords = WindFrame(turb_coords, wind_dir_deg)
     # Use the Simplified Bastankhah Gaussian wake model for wake deficits
-    loss = GaussianWake(frame_coords, turb_diam)
+    loss = GaussianWake(frame_coords)
     # Effective windspeed is freestream multiplied by wake deficits
     wind_speed_eff = wind_speed*(1.-loss)
     # By default, the turbine's power output is zero
@@ -98,14 +98,13 @@ def DirPower(turb_coords, wind_dir_deg, wind_speed,
     # Check to see if turbine produces power for experienced wind speed
     for n, ws_eff in enumerate(wind_speed_eff):
         # If we're between the cut-in and rated wind speeds
-        if ((turb_ci <= ws_eff) and (ws_eff < rated_ws)):
+        if ((turb_ci <= ws_eff) and (ws_eff < 1.)):
             # Calculate the curve's power
-            turb_pwr[n] = (rated_pwr
-                           * ((ws_eff-turb_ci) / (rated_ws-turb_ci)) ** 3)
+            turb_pwr[n] = ((ws_eff-turb_ci) / (1.-turb_ci)) ** 3
         # If we're between the rated and cut-out wind speeds
-        elif ((rated_ws <= ws_eff) and (ws_eff < turb_co)):
+        elif ((1. <= ws_eff) and (ws_eff < turb_co)):
             # Produce the rated power
-            turb_pwr[n] = rated_pwr
+            turb_pwr[n] = 1.
 
     # Sum the power from all turbines for this direction
     pwrDir = np.sum(turb_pwr)
@@ -113,8 +112,7 @@ def DirPower(turb_coords, wind_dir_deg, wind_speed,
     return pwrDir
 
 
-def calcAEP(turb_coords, wind_freq, wind_speed, wind_dir,
-            turb_diam, turb_ci, turb_co, rated_ws, rated_pwr):
+def calcAEP(turb_coords, wind_freq, wind_speed, wind_dir, turb_ci, turb_co):
     """Calculate the wind farm AEP."""
     #  Power produced by the wind farm from each wind direction
     pwr_produced = np.zeros(wind_dir.shape)
@@ -122,8 +120,7 @@ def calcAEP(turb_coords, wind_freq, wind_speed, wind_dir,
     for i, direction in enumerate(wind_dir):
         # Find the farm's power for the current direction
         pwr_produced[i] = DirPower(turb_coords, direction, wind_speed,
-                                   turb_diam, turb_ci, turb_co,
-                                   rated_ws, rated_pwr)
+                                   turb_ci, turb_co)
 
     #  Convert power to AEP
     hrs_per_year = 365.*24.
@@ -223,9 +220,19 @@ if __name__ == "__main__":
     turb_ci, turb_co, rated_ws, rated_pwr, turb_diam = getTurbAtrbtYAML(
         fname_turb)
 
+    # Express distances in terms of diameter lengths
+    turb_coords.x /= turb_diam
+    turb_coords.y /= turb_diam
+    # Express speeds in terms of rated speed
+    wind_speed /= rated_ws
+    turb_ci /= rated_ws
+    turb_co /= rated_ws
+    # Express speeds in terms of rated speed
+    # (nothing to do)
+
     # Calculate the AEP from ripped values
-    AEP = calcAEP(turb_coords, wind_freq, wind_speed, wind_dir,
-                  turb_diam, turb_ci, turb_co, rated_ws, rated_pwr)
+    AEP = rated_pwr * calcAEP(turb_coords, wind_freq, wind_speed, wind_dir,
+                              turb_ci, turb_co)
     # Print AEP for each binned direction, with 5 digits behind the decimal.
     print(np.array2string(AEP, precision=5, floatmode='fixed',
                           separator=', ', max_line_width=62))

@@ -89,21 +89,25 @@ def DirPower(turb_coords, wind_dir_deg, wind_speed,
     frame_coords = WindFrame(turb_coords, wind_dir_deg)
     # Use the Simplified Bastankhah Gaussian wake model for wake deficits
     loss = GaussianWake(frame_coords)
-    # Effective windspeed is freestream multiplied by wake deficits
-    wind_speed_eff = wind_speed*(1.-loss)
-    # By default, the turbine's power output is zero
-    turb_pwr = np.zeros(turb_coords.shape)
 
-    # Check to see if turbine produces power for experienced wind speed
-    for n, ws_eff in enumerate(wind_speed_eff):
-        # If we're between the cut-in and rated wind speeds
-        if ((turb_ci <= ws_eff) and (ws_eff < 1.)):
-            # Calculate the curve's power
-            turb_pwr[n] = ((ws_eff-turb_ci) / (1.-turb_ci)) ** 3
-        # If we're between the rated and cut-out wind speeds
-        elif ((1. <= ws_eff) and (ws_eff < turb_co)):
-            # Produce the rated power
-            turb_pwr[n] = 1.
+    # Effective windspeed is freestream multiplied by wake deficits
+    wind_speed_eff = wind_speed * (1.-loss)
+
+    # Calculate the power from each turbine
+    # based on experienced wind speed & power curve
+    # 1. By default, power output is zero
+    turb_pwr = np.zeros(frame_coords.shape)
+    # 2. Determine which effective wind speeds are between cut-in and cut-out
+    #    or on the curve
+    between_cut_speeds = np.logical_and(turb_ci <= wind_speed_eff,
+                                        wind_speed_eff < turb_co)
+    below_rated = wind_speed_eff < 1.
+    on_curve = np.logical_and(between_cut_speeds, below_rated)
+    # 3. Between cut-in and cut-out, power is a fraction of rated
+    turb_pwr[between_cut_speeds] = 1.
+    # 4. Only below rated (on curve) not at 100%, but based on curve
+    turb_pwr[on_curve] *= ((wind_speed_eff[on_curve] - turb_ci)
+                           / (1. - turb_ci)) ** 3
 
     # Sum the power from all turbines for this direction
     pwrDir = np.sum(turb_pwr)

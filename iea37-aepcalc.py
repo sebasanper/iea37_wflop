@@ -118,12 +118,10 @@ def DirPower(turb_coords, wind_dir_deg, wind_speed,
 def calcAEP(turb_coords, wind_freq, wind_speed, wind_dir, turb_ci, turb_co):
     """Calculate the wind farm AEP."""
     #  Power produced by the wind farm from each wind direction
-    pwr_produced = np.zeros(wind_dir.shape)
-    # For each wind bin
-    for i, direction in enumerate(wind_dir):
-        # Find the farm's power for the current direction
-        pwr_produced[i] = DirPower(turb_coords, direction, wind_speed,
-                                   turb_ci, turb_co)
+    pwr_produced = np.fromiter((DirPower(turb_coords, direction, wind_speed,
+                                         turb_ci, turb_co)
+                                for direction in wind_dir),
+                               np.double)
 
     #  Convert power to AEP
     hrs_per_year = 365.*24.

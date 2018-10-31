@@ -30,13 +30,14 @@ turb_ci /= rated_ws
 turb_co /= rated_ws
 
 
-nt = 64 # Number of turbines
+nt = 16 # Number of turbines
 no_AEP = nt * 3.35 * 24.0 * 365.0
+max_r = 1300.0#2000#3000.0
 
 def fit(layout):
 
-    turbineX = np.asarray([turb[0] * cos(turb[1]) for turb in layout])
-    turbineY = np.asarray([turb[0] * sin(turb[1]) for turb in layout])
+    turbineX = np.asarray([max_r * cos(turb[1]) for turb in layout])
+    turbineY = np.asarray([max_r * sin(turb[1]) for turb in layout])
 
     turb_coords = np.recarray(turbineX.shape, coordinate)
     turb_coords.x, turb_coords.y = turbineX / turb_diam, turbineY / turb_diam
@@ -57,19 +58,18 @@ def real_distance(a_p, b_p):
 
 def pso(filename_layout, filename_all_lcoe, filename_best_lcoe, n_run):
 
-    np = 20 # Number of particles in swarm
+    np = 30 # Number of particles in swarm
     max_iter = 400
     nD_constraint = 2.0 # Minimum spacing normalised with diameter between turbines (constraint).
-    max_r = 3000.0#1300.0#2000#3000.0
 
 
-    vel = array([[[- max_r / 2.0 + random() * max_r, random() * 2.0 * pi] for _ in range(nt)] for _ in range(np)])
+    vel = array([[[0, random() * 2.0 * pi] for _ in range(nt)] for _ in range(np)])
     best_local_layout = array([[[0.0, 0.0] for _ in range(nt)] for _ in range(np)])
     best_own_fitness = [float('inf') for _ in range(np)]
     best_global_fitness = float('inf')
 
     def create_turbine():
-        a = [- max_r + 2.0 * random() * max_r, random() * 2.0 * pi]
+        a = [max_r, random() * 2.0 * pi]
         return a
 
     def create():
@@ -122,11 +122,11 @@ def pso(filename_layout, filename_all_lcoe, filename_best_lcoe, n_run):
                 particles[p] = particles[p] + vel[p]
 
                 # Constraining the position of the particles to remain within the circle.
-                for n in range(nt):
-                    if particles[p][n][0] > max_r:
-                        particles[p][n][0] = max_r
-                    if particles[p][n][0] < - max_r:
-                        particles[p][n][0] = - max_r
+                # for n in range(nt):
+                #     if particles[p][n][0] > max_r:
+                #         particles[p][n][0] = max_r
+                #     if particles[p][n][0] < - max_r:
+                #         particles[p][n][0] = - max_r
 
             for b in range(np):
                 pp = 0
@@ -141,10 +141,10 @@ def pso(filename_layout, filename_all_lcoe, filename_best_lcoe, n_run):
             # print("Iteration {0:d} - {1}% - {2} s - obj. {3}".format(iter, float(iter) / max_iter * 100.0, time.time() - start_time2, best_global_fitness))
 
 
-    best = open('rel_final_layout{}_{}.dat'.format(nt, n_run), 'w')
-    best_g_fit = open('rel_final_fitness{}_{}.dat'.format(nt, n_run), 'w')
+    best = open('circle_final_layout{}_{}.dat'.format(nt, n_run), 'w')
+    best_g_fit = open('circle_final_fitness{}_{}.dat'.format(nt, n_run), 'w')
     for i in range(nt):
-        best.write('{} {} {} {}\n'.format(best_layout[i][0] * cos(best_layout[i][1]), best_layout[i][0] * sin(best_layout[i][1]), best_layout[i][0], best_layout[i][1]))
+        best.write('{} {} {} {}\n'.format(max_r * cos(best_layout[i][1]), max_r * sin(best_layout[i][1]), max_r, best_layout[i][1]))
     best_g_fit.write('{}\n'.format(best_global_fitness))
     best.close()
     best_g_fit.close()
@@ -153,9 +153,9 @@ if __name__ == '__main__':
 
     def optimise(run):
         n_run = run
-        pso("rel_layouts_{}_{}.dat".format(nt, n_run), "rel_costs{}_{}.dat".format(nt, n_run), "rel_best_cost{}_{}.dat".format(nt, n_run), n_run)
+        pso("circle_layouts_{}_{}.dat".format(nt, n_run), "circle_costs{}_{}.dat".format(nt, n_run), "circle_best_cost{}_{}.dat".format(nt, n_run), n_run)
 
-    Parallel(n_jobs=8)(delayed(optimise)(i) for i in range(101, 201))
+    Parallel(n_jobs=8)(delayed(optimise)(i) for i in range(17, 33))
 
     # for run in range(1, 11):
     #     n_run = run
